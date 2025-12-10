@@ -1,3 +1,6 @@
+## Motivation
+To reduce reliance on NVIDIA licensing, and not a fan of Python-based UI
+
 ## Prerequisites
 
 Before building this project, ensure you have the following installed:
@@ -40,3 +43,6 @@ Before building this project, ensure you have the following installed:
 
 ## Loading a pretrained model
 For now, use [https://drive.google.com/file/d/1PITDmC624wk1FWK7WmRMgM5nC2NUjmd8/view?usp=sharing](https://drive.google.com/file/d/1PITDmC624wk1FWK7WmRMgM5nC2NUjmd8/view?usp=sharing)
+
+## Non-exhaustive TODO list
+Need to implement an audio resampler at 16khz before feeding the audio input to feature extraction
