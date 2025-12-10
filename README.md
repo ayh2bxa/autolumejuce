@@ -28,7 +28,7 @@ Before building this project, ensure you have the following installed:
    ```bash
    mkdir build
    cd build
-   cmake -G <Your Visual Studio Version (eg. Visual Studio 17 2022)> ..
+   cmake -G "Your Visual Studio Version (eg. Visual Studio 17 2022)" ..
    ```
 
 **Linux**
@@ -39,4 +39,4 @@ Before building this project, ensure you have the following installed:
    ```
 
 ## Loading a pretrained model
-For now, see [https://drive.google.com/file/d/1PITDmC624wk1FWK7WmRMgM5nC2NUjmd8/view?usp=sharing](https://drive.google.com/file/d/1PITDmC624wk1FWK7WmRMgM5nC2NUjmd8/view?usp=sharing)
+For now, use [https://drive.google.com/file/d/1PITDmC624wk1FWK7WmRMgM5nC2NUjmd8/view?usp=sharing](https://drive.google.com/file/d/1PITDmC624wk1FWK7WmRMgM5nC2NUjmd8/view?usp=sharing)
