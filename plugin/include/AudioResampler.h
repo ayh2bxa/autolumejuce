@@ -48,6 +48,12 @@ public:
      */
     int getLastOutputSampleCount() const { return lastOutputSampleCount; }
 
+    /**
+     * Apply only the FIR anti-aliasing filter (no resampling)
+     * Useful for testing or when sample rate conversion is not needed
+     */
+    float applyFilterOnly(float inputSample);
+
     double getSourceRate() const { return sourceRate; }
     double getTargetRate() const { return targetRate; }
     double getResampleRatio() const { return resampleRatio; }

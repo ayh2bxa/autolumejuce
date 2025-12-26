@@ -71,6 +71,11 @@ void AudioResampler::apply(float *in, float *out, int numSamples)
     resample(in, out, numSamples);
 }
 
+float AudioResampler::applyFilterOnly(float inputSample)
+{
+    return applyFIR(inputSample);
+}
+
 int AudioResampler::getExpectedOutputSize(int inputSamples) const
 {
     return static_cast<int>(std::ceil(inputSamples * resampleRatio));

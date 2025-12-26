@@ -92,14 +92,18 @@ void AudioPluginAudioProcessor::prepareToPlay (double sampleRate, int samplesPer
     // Initialize the Autolume renderer (model loading, GPU setup, thread start)
     renderer.initialize();
 
-    // Initialize the audio resampler
-    resampler.initialize(sampleRate);
+    // Initialize the downsampler (44.1 kHz -> 16 kHz)
+    downsampler.initialize(sampleRate);
+
+    // Initialize the reconstruction filter (operates at 44.1 kHz)
+    reconstructionFilter.initialize(sampleRate);
 
     // Allocate buffers
     monoBuffer.resize(samplesPerBlock);
+    upsampledBuffer.resize(samplesPerBlock);
 
     // Calculate expected output size for resampled buffer
-    int expectedResampledSize = resampler.getExpectedOutputSize(samplesPerBlock);
+    int expectedResampledSize = downsampler.getExpectedOutputSize(samplesPerBlock);
     resampledBuffer.resize(expectedResampledSize + 64); // Extra padding for safety
 }
 
@@ -160,37 +164,46 @@ void AudioPluginAudioProcessor::processBlock (juce::AudioBuffer<float>& buffer,
         monoBuffer[s] = 0.5f * (leftData[s] + rightData[s]);
     }
 
-    // Apply anti-aliasing filter and resample from 44.1 kHz to 16 kHz
-    int numResampledSamples = resampler.resample(monoBuffer.data(), resampledBuffer.data(), numSamples);
+    // Step 1: Apply anti-aliasing filter and downsample from 44.1 kHz to 16 kHz
+    int numResampledSamples = downsampler.resample(monoBuffer.data(), resampledBuffer.data(), numSamples);
 
     // TODO: Send resampledBuffer to the Autolume renderer for processing
     // The resampled audio is now in resampledBuffer[0..numResampledSamples-1]
     // at 16 kHz sample rate
 
-    // Upsample back to 44.1 kHz using linear interpolation
-    double upsampleRatio = static_cast<double>(numSamples) / static_cast<double>(numResampledSamples);
+    // Step 2: Upsample back to 44.1 kHz using linear interpolation
+    if (upsampledBuffer.size() < static_cast<size_t>(numSamples))
+        upsampledBuffer.resize(numSamples);
 
+    if (numResampledSamples > 0) {
+        for (int i = 0; i < numSamples; ++i) {
+            // Map output sample position to resampled buffer position
+            double srcPos = (static_cast<double>(i) * numResampledSamples) / numSamples;
+            int srcIndex = static_cast<int>(srcPos);
+            float frac = static_cast<float>(srcPos - srcIndex);
+
+            // Linear interpolation with bounds checking
+            if (srcIndex >= numResampledSamples - 1) {
+                upsampledBuffer[i] = resampledBuffer[numResampledSamples - 1];
+            } else {
+                upsampledBuffer[i] = resampledBuffer[srcIndex] * (1.0f - frac) +
+                                     resampledBuffer[srcIndex + 1] * frac;
+            }
+        }
+    }
+
+    // Step 3: Apply reconstruction filter to remove imaging artifacts
     auto* outputLeft = buffer.getWritePointer(0);
     auto* outputRight = totalNumOutputChannels > 1 ? buffer.getWritePointer(1) : nullptr;
 
     for (int i = 0; i < numSamples; ++i) {
-        // Calculate position in resampled buffer
-        double resampledPos = static_cast<double>(i) / upsampleRatio;
-        int index = static_cast<int>(resampledPos);
-        float frac = static_cast<float>(resampledPos - index);
-
-        // Linear interpolation
-        float sample;
-        if (index + 1 < numResampledSamples) {
-            sample = resampledBuffer[index] + frac * (resampledBuffer[index + 1] - resampledBuffer[index]);
-        } else {
-            sample = resampledBuffer[index];
-        }
+        // Apply reconstruction filter (same FIR filter to remove images above 7.2 kHz)
+        float filteredSample = reconstructionFilter.applyFilterOnly(upsampledBuffer[i]);
 
         // Write to output (mono to stereo)
-        outputLeft[i] = sample;
+        outputLeft[i] = filteredSample;
         if (outputRight != nullptr) {
-            outputRight[i] = sample;
+            outputRight[i] = filteredSample;
         }
     }
 }

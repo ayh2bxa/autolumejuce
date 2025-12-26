@@ -48,14 +48,20 @@ public:
     Autolume renderer;
 
 private:
-    // Audio resampler (44.1 kHz -> 16 kHz)
-    AudioResampler resampler;
+    // Audio resampler for downsampling (44.1 kHz -> 16 kHz)
+    AudioResampler downsampler;
+
+    // Reconstruction filter for upsampled audio (removes imaging artifacts)
+    AudioResampler reconstructionFilter;
 
     // Buffer for mono mixed audio (before resampling)
     std::vector<float> monoBuffer;
 
     // Buffer for resampled audio (16 kHz)
     std::vector<float> resampledBuffer;
+
+    // Buffer for upsampled audio (before reconstruction filter)
+    std::vector<float> upsampledBuffer;
     //==============================================================================
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (AudioPluginAudioProcessor)
 };
