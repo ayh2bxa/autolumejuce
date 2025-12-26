@@ -2,6 +2,7 @@
 
 #include <juce_audio_processors/juce_audio_processors.h>
 #include "autolume.h"
+#include "AudioResampler.h"
 
 //==============================================================================
 class AudioPluginAudioProcessor final : public juce::AudioProcessor
@@ -47,6 +48,14 @@ public:
     Autolume renderer;
 
 private:
+    // Audio resampler (44.1 kHz -> 16 kHz)
+    AudioResampler resampler;
+
+    // Buffer for mono mixed audio (before resampling)
+    std::vector<float> monoBuffer;
+
+    // Buffer for resampled audio (16 kHz)
+    std::vector<float> resampledBuffer;
     //==============================================================================
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (AudioPluginAudioProcessor)
 };

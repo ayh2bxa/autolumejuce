@@ -88,10 +88,19 @@ void AudioPluginAudioProcessor::prepareToPlay (double sampleRate, int samplesPer
 {
     // Use this method as the place to do any pre-playback
     // initialisation that you need..
-    juce::ignoreUnused (sampleRate, samplesPerBlock);
 
     // Initialize the Autolume renderer (model loading, GPU setup, thread start)
     renderer.initialize();
+
+    // Initialize the audio resampler
+    resampler.initialize(sampleRate);
+
+    // Allocate buffers
+    monoBuffer.resize(samplesPerBlock);
+
+    // Calculate expected output size for resampled buffer
+    int expectedResampledSize = resampler.getExpectedOutputSize(samplesPerBlock);
+    resampledBuffer.resize(expectedResampledSize + 64); // Extra padding for safety
 }
 
 void AudioPluginAudioProcessor::releaseResources()
@@ -133,14 +142,56 @@ void AudioPluginAudioProcessor::processBlock (juce::AudioBuffer<float>& buffer,
     auto totalNumInputChannels  = getTotalNumInputChannels();
     auto totalNumOutputChannels = getTotalNumOutputChannels();
 
+    // Clear any output channels that didn't have corresponding input channels
     for (auto i = totalNumInputChannels; i < totalNumOutputChannels; ++i)
         buffer.clear (i, 0, buffer.getNumSamples());
 
-    auto* leftData = buffer.getWritePointer(0);
-    auto* rightData = buffer.getWritePointer(1);
-    for (int s = 0; s < buffer.getNumSamples(); s++) {
-        float val = 0.5f*(leftData[s]+rightData[s]);
-        renderer.processAudio(val);
+    int numSamples = buffer.getNumSamples();
+
+    // Ensure buffers are large enough
+    if (monoBuffer.size() < static_cast<size_t>(numSamples))
+        monoBuffer.resize(numSamples);
+
+    // Mix to mono (average left and right channels)
+    auto* leftData = buffer.getReadPointer(0);
+    auto* rightData = totalNumInputChannels > 1 ? buffer.getReadPointer(1) : leftData;
+
+    for (int s = 0; s < numSamples; ++s) {
+        monoBuffer[s] = 0.5f * (leftData[s] + rightData[s]);
+    }
+
+    // Apply anti-aliasing filter and resample from 44.1 kHz to 16 kHz
+    int numResampledSamples = resampler.resample(monoBuffer.data(), resampledBuffer.data(), numSamples);
+
+    // TODO: Send resampledBuffer to the Autolume renderer for processing
+    // The resampled audio is now in resampledBuffer[0..numResampledSamples-1]
+    // at 16 kHz sample rate
+
+    // Upsample back to 44.1 kHz using linear interpolation
+    double upsampleRatio = static_cast<double>(numSamples) / static_cast<double>(numResampledSamples);
+
+    auto* outputLeft = buffer.getWritePointer(0);
+    auto* outputRight = totalNumOutputChannels > 1 ? buffer.getWritePointer(1) : nullptr;
+
+    for (int i = 0; i < numSamples; ++i) {
+        // Calculate position in resampled buffer
+        double resampledPos = static_cast<double>(i) / upsampleRatio;
+        int index = static_cast<int>(resampledPos);
+        float frac = static_cast<float>(resampledPos - index);
+
+        // Linear interpolation
+        float sample;
+        if (index + 1 < numResampledSamples) {
+            sample = resampledBuffer[index] + frac * (resampledBuffer[index + 1] - resampledBuffer[index]);
+        } else {
+            sample = resampledBuffer[index];
+        }
+
+        // Write to output (mono to stereo)
+        outputLeft[i] = sample;
+        if (outputRight != nullptr) {
+            outputRight[i] = sample;
+        }
     }
 }
 
