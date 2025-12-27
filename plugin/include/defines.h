@@ -9,6 +9,6 @@ namespace Constants {
     static constexpr int frameHeight = 512;
     static constexpr int frameNumCh = 3;
     static constexpr int frameBytes = frameWidth * frameHeight * frameNumCh;
-    static constexpr int fps = 20;
+    static constexpr int fps = 30;
     static constexpr double target_sr = 16000.0;
 }

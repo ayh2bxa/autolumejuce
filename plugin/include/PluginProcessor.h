@@ -3,6 +3,7 @@
 #include <juce_audio_processors/juce_audio_processors.h>
 #include "autolume.h"
 #include "AudioResampler.h"
+#include "defines.h"
 
 //==============================================================================
 class AudioPluginAudioProcessor final : public juce::AudioProcessor
@@ -55,7 +56,7 @@ private:
     AudioResampler reconstructionFilter;
 
     // Buffer for mono mixed audio (before resampling)
-    std::vector<float> monoBuffer;
+    std::array<float, Constants::max_buf_size> monoBuffer;
 
     // Buffer for resampled audio (16 kHz)
     std::vector<float> resampledBuffer;

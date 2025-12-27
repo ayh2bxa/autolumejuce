@@ -99,7 +99,6 @@ void AudioPluginAudioProcessor::prepareToPlay (double sampleRate, int samplesPer
     reconstructionFilter.initialize(sampleRate);
 
     // Allocate buffers
-    monoBuffer.resize(samplesPerBlock);
     upsampledBuffer.resize(samplesPerBlock);
 
     // Calculate expected output size for resampled buffer
@@ -152,10 +151,6 @@ void AudioPluginAudioProcessor::processBlock (juce::AudioBuffer<float>& buffer,
 
     int numSamples = buffer.getNumSamples();
 
-    // Ensure buffers are large enough
-    if (monoBuffer.size() < static_cast<size_t>(numSamples))
-        monoBuffer.resize(numSamples);
-
     // Mix to mono (average left and right channels)
     auto* leftData = buffer.getReadPointer(0);
     auto* rightData = totalNumInputChannels > 1 ? buffer.getReadPointer(1) : leftData;
@@ -167,44 +162,8 @@ void AudioPluginAudioProcessor::processBlock (juce::AudioBuffer<float>& buffer,
     // Step 1: Apply anti-aliasing filter and downsample from 44.1 kHz to 16 kHz
     int numResampledSamples = downsampler.resample(monoBuffer.data(), resampledBuffer.data(), numSamples);
 
-    // TODO: Send resampledBuffer to the Autolume renderer for processing
-    // The resampled audio is now in resampledBuffer[0..numResampledSamples-1]
-    // at 16 kHz sample rate
-
-    // Step 2: Upsample back to 44.1 kHz using linear interpolation
-    if (upsampledBuffer.size() < static_cast<size_t>(numSamples))
-        upsampledBuffer.resize(numSamples);
-
-    if (numResampledSamples > 0) {
-        for (int i = 0; i < numSamples; ++i) {
-            // Map output sample position to resampled buffer position
-            double srcPos = (static_cast<double>(i) * numResampledSamples) / numSamples;
-            int srcIndex = static_cast<int>(srcPos);
-            float frac = static_cast<float>(srcPos - srcIndex);
-
-            // Linear interpolation with bounds checking
-            if (srcIndex >= numResampledSamples - 1) {
-                upsampledBuffer[i] = resampledBuffer[numResampledSamples - 1];
-            } else {
-                upsampledBuffer[i] = resampledBuffer[srcIndex] * (1.0f - frac) +
-                                     resampledBuffer[srcIndex + 1] * frac;
-            }
-        }
-    }
-
-    // Step 3: Apply reconstruction filter to remove imaging artifacts
-    auto* outputLeft = buffer.getWritePointer(0);
-    auto* outputRight = totalNumOutputChannels > 1 ? buffer.getWritePointer(1) : nullptr;
-
-    for (int i = 0; i < numSamples; ++i) {
-        // Apply reconstruction filter (same FIR filter to remove images above 7.2 kHz)
-        float filteredSample = reconstructionFilter.applyFilterOnly(upsampledBuffer[i]);
-
-        // Write to output (mono to stereo)
-        outputLeft[i] = filteredSample;
-        if (outputRight != nullptr) {
-            outputRight[i] = filteredSample;
-        }
+    for (int s = 0; s < numResampledSamples; s++) {
+        renderer.processAudio(resampledBuffer[s]);
     }
 }
 
